@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0d0d0d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="OD Filler">
+<title>OurDream Filler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg:        #0d0d0d;
+    --surface:   #141414;
+    --card:      #1c1c1c;
+    --border:    #2a2a2a;
+    --pink:      #e8186e;
+    --pink-dim:  #5c0a2c;
+    --pink-glow: rgba(232,24,110,0.15);
+    --text:      #f2f2f2;
+    --text-dim:  #777;
+    --text-muted:#3a3a3a;
+    --success:   #22c55e;
+    --mono:      'DM Mono', monospace;
+    --sans:      'Syne', sans-serif;
+    --radius:    12px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+  }
+
+  /* ── APP SHELL ─────────────────────────────────────────────── */
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Noise texture overlay */
+  #app::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* ── SCREENS ───────────────────────────────────────────────── */
+  .screen {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+    z-index: 1;
+  }
+  .screen.active { display: flex; }
+
+  .scroll-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px 18px calc(24px + var(--safe-bottom));
+  }
+
+  /* ── TOP BAR ───────────────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .topbar-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    text-align: center;
+    flex: 1;
+  }
+  .topbar-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: center;
+    margin-top: 1px;
+  }
+  .back-btn {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pink);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 0;
+    width: 72px;
+    text-align: left;
+    font-family: var(--sans);
+  }
+  .topbar-spacer { width: 72px; }
+
+  /* ── HERO ──────────────────────────────────────────────────── */
+  .hero {
+    text-align: center;
+    padding: 36px 0 28px;
+  }
+  .hero-logo {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 5px;
+    color: var(--pink);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .hero-title {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+  }
+  .hero-title span { color: var(--pink); }
+  .hero-sub {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-weight: 300;
+  }
+
+  /* Pulsing dot */
+  .pulse-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--pink);
+    margin-right: 6px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  /* ── LABEL / SECTION ───────────────────────────────────────── */
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    margin-top: 24px;
+  }
+  .section-label:first-of-type { margin-top: 0; }
+
+  /* ── BUTTONS ───────────────────────────────────────────────── */
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 15px 20px;
+    border-radius: var(--radius);
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s, transform 0.1s;
+    text-align: center;
+  }
+  .btn:active { transform: scale(0.97); opacity: 0.85; }
+  .btn:disabled { opacity: 0.35; pointer-events: none; }
+
+  .btn-primary { background: var(--pink); color: #fff; }
+  .btn-outline  {
+    background: transparent;
+    border: 1.5px solid var(--pink);
+    color: var(--pink);
+  }
+  .btn-ghost {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-row {
+    display: flex;
+    gap: 10px;
+  }
+  .btn-row .btn { flex: 1; padding: 12px 14px; font-size: 13px; }
+
+  /* ── TEXTAREA ──────────────────────────────────────────────── */
+  textarea, input[type=text], input[type=url] {
+    width: 100%;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 300;
+    line-height: 1.6;
+    padding: 14px;
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  textarea:focus, input:focus {
+    border-color: var(--pink);
+    background: #181818;
+  }
+  textarea::placeholder, input::placeholder { color: var(--text-muted); }
+
+  #report-input {
+    min-height: 220px;
+    margin-bottom: 6px;
+  }
+  .char-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: right;
+    font-family: var(--mono);
+    margin-bottom: 18px;
+  }
+
+  /* ── FIELD CARDS ───────────────────────────────────────────── */
+  .field-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .field-card.has-value { border-color: #2e2e2e; }
+  .field-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .field-label-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .field-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .field-dot.card-type { background: var(--pink); }
+  .field-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .field-chevron {
+    font-size: 10px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+  }
+  .field-card.expanded .field-chevron { transform: rotate(180deg); }
+  .field-preview {
+    padding: 0 14px 12px;
+    font-size: 13px;
+    font-family: var(--mono);
+    font-weight: 300;
+    color: var(--text);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .field-preview.empty { color: var(--text-muted); font-style: italic; }
+  .field-body {
+    display: none;
+    padding: 0 12px 12px;
+  }
+  .field-card.expanded .field-body { display: block; }
+  .field-body textarea {
+    min-height: 120px;
+    border-color: var(--pink-dim);
+  }
+
+  /* ── LEGEND ────────────────────────────────────────────────── */
+  .legend {
+    display: flex;
+    gap: 18px;
+    margin-bottom: 18px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+
+  /* ── STATS BAR ─────────────────────────────────────────────── */
+  .stats-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    margin-bottom: 18px;
+    border: 1px solid var(--border);
+  }
+  .stats-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .stats-badge {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--pink);
+    background: var(--pink-glow);
+    border: 1px solid var(--pink-dim);
+    border-radius: 6px;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+
+  /* ── CHAR CARDS ────────────────────────────────────────────── */
+  .char-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .char-card:active { background: #222; border-color: var(--pink-dim); }
+  .char-avatar {
+    width: 44px; height: 44px;
+    border-radius: 22px;
+    background: var(--pink-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--pink);
+    flex-shrink: 0;
+    border: 1px solid var(--pink-dim);
+  }
+  .char-info { flex: 1; min-width: 0; }
+  .char-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .char-id {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    margin-top: 2px;
+  }
+  .char-arrow { color: var(--pink); font-size: 18px; }
+
+  /* ── MANUAL URL ────────────────────────────────────────────── */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 24px 0 18px;
+  }
+  .divider-line { flex: 1; height: 1px; background: var(--border); }
+  .divider-text { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+
+  /* ── INJECT SCREEN ─────────────────────────────────────────── */
+  .inject-bar {
+    padding: 12px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .inject-btn {
+    background: var(--pink);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 14px;
+    width: 100%;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: opacity 0.15s;
+  }
+  .inject-btn:active { opacity: 0.8; }
+  .inject-btn:disabled { opacity: 0.4; cursor: default; }
+  .inject-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 0 2px;
+    font-size: 13px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+
+  /* iframe per OurDream */
+  #od-frame {
+    flex: 1;
+    border: none;
+    background: var(--bg);
+  }
+
+  /* ── SPINNER ───────────────────────────────────────────────── */
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--pink-dim);
+    border-top-color: var(--pink);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── LOADING STATE ─────────────────────────────────────────── */
+  .loading-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 60px 20px;
+    gap: 14px;
+  }
+  .loading-box .spinner { width: 32px; height: 32px; border-width: 3px; }
+  .loading-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .loading-sub { font-size: 13px; color: var(--text-dim); text-align: center; font-family: var(--mono); }
+
+  /* ── EMPTY STATE ───────────────────────────────────────────── */
+  .empty-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 50px 20px;
+    gap: 10px;
+    text-align: center;
+  }
+  .empty-icon { font-size: 36px; margin-bottom: 6px; }
+  .empty-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .empty-sub { font-size: 13px; color: var(--text-dim); font-family: var(--mono); margin-bottom: 10px; }
+
+  /* ── TOAST ─────────────────────────────────────────────────── */
+  #toast {
+    position: fixed;
+    bottom: calc(28px + var(--safe-bottom));
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-family: var(--mono);
+    color: var(--text);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 9999;
+    pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast.success { border-color: #166534; color: var(--success); }
+  #toast.error { border-color: #7f1d1d; color: #f87171; }
+
+  /* ── RESULTS LIST ──────────────────────────────────────────── */
+  .results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .result-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: var(--mono);
+  }
+  .result-ok    { color: var(--success); }
+  .result-skip  { color: var(--text-muted); }
+  .result-fail  { color: #f87171; }
+
+  /* ── ANIMATIONS ────────────────────────────────────────────── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .screen.active .hero,
+  .screen.active .section-label,
+  .screen.active .btn,
+  .screen.active .stats-bar {
+    animation: fadeUp 0.35s ease both;
+  }
+  .screen.active .section-label { animation-delay: 0.05s; }
+  .screen.active .btn            { animation-delay: 0.1s; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- SCREEN 1: HOME                                            -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="screen-home" class="screen active">
+    <div class="scroll-body">
+      <div class="hero">
+        <div class="hero-logo"><span class="pulse-dot"></span>OurDream</div>
+        <div class="hero-title">Character<br><span>Filler</span></div>
+        <div class="hero-sub">incolla · estrai · compila</div>
+      </div>
+
+      <div class="section-label">Report del personaggio</div>
+
+      <div class="btn-row" style="margin-bottom:12px">
+        <button class="btn btn-outline" onclick="pickFile()">📁 Carica .txt</button>
+        <button class="btn btn-outline" onclick="pasteClipboard()">📋 Incolla</button>
+      </div>
+
+      <textarea id="report-input"
+        placeholder="Incolla qui il report del personaggio...&#10;&#10;Esempio:&#10;Hera Argìre&#10;&#10;[Appearance]&#10;* Hair Style: Bun&#10;* Body Type: Voluptuous&#10;...&#10;&#10;[Personality]&#10;* Personality: Regal, Dominant&#10;* Occupation: CFO of Olympus Ltd.&#10;..."
+        oninput="updateCharCount()"
+      ></textarea>
+      <div class="char-count" id="char-count">0 caratteri</div>
+
+      <button class="btn btn-primary" id="analyze-btn" onclick="analyzeReport()" disabled>
+        Analizza Report →
+      </button>
+
+      <input type="file" id="file-input" accept=".txt,text/plain" style="display:none" onchange="handleFileInput(event)">
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- SCREEN 2: REVIEW                                          -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="screen-review" class="screen">
+    <div class="topbar">
+      <button class="back-btn" onclick="goTo('home')">← Indietro</button>
+      <div>
+        <div class="topbar-title" id="review-char-name">Personaggio</div>
+        <div class="topbar-sub" id="review-field-count">0/0 campi</div>
+      </div>
+      <div class="topbar-spacer"></div>
+    </div>
+    <div class="scroll-body" id="review-body">
+      <!-- generato da JS -->
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- SCREEN 3: CHARACTERS                                      -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="screen-characters" class="screen">
+    <div class="topbar">
+      <button class="back-btn" onclick="goTo('review')">← Indietro</button>
+      <div>
+        <div class="topbar-title">Scegli personaggio</div>
+        <div class="topbar-sub">da aggiornare</div>
+      </div>
+      <div class="topbar-spacer"></div>
+    </div>
+    <div class="scroll-body">
+      <div id="char-list-body">
+        <div class="loading-box">
+          <div class="spinner"></div>
+          <div class="loading-title">Connessione a OurDream...</div>
+          <div class="loading-sub">Usa il browser nascosto per<br>caricare i tuoi personaggi</div>
+        </div>
+      </div>
+
+      <div class="divider">
+        <div class="divider-line"></div>
+        <div class="divider-text">oppure inserisci URL</div>
+        <div class="divider-line"></div>
+      </div>
+
+      <div class="section-label">URL edit manuale</div>
+      <input type="url" id="manual-url"
+        placeholder="https://ourdream.ai/edit/..."
+        style="margin-bottom:10px"
+      >
+      <button class="btn btn-outline" onclick="useManualUrl()">Usa questo URL →</button>
+      <div style="height:32px"></div>
+    </div>
+
+    <!-- iframe nascosto per estrarre lista personaggi -->
+    <iframe id="od-hidden-frame" src="about:blank" style="display:none" sandbox="allow-same-origin allow-scripts"></iframe>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- SCREEN 4: WEBVIEW / INJECT                                -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div id="screen-inject" class="screen">
+    <div class="topbar">
+      <button class="back-btn" onclick="goTo('characters')">← Indietro</button>
+      <div>
+        <div class="topbar-title" id="inject-char-name">Personaggio</div>
+        <div class="topbar-sub">pagina di edit</div>
+      </div>
+      <div class="topbar-spacer"></div>
+    </div>
+
+    <div class="inject-bar">
+      <button class="inject-btn" id="inject-btn" onclick="startInjection()" disabled>
+        <div class="spinner" id="inject-spinner" style="display:none"></div>
+        <span id="inject-btn-text">⚡ Compila campi automaticamente</span>
+      </button>
+      <div class="inject-status" id="inject-status" style="display:none"></div>
+    </div>
+
+    <iframe id="od-frame" src="about:blank" onload="onFrameLoad()"></iframe>
+  </div>
+
+</div><!-- #app -->
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+const state = {
+  currentScreen: 'home',
+  parsedReport:  null,
+  editFields:    {},
+  selectedChar:  null,
+  frameLoaded:   false,
+  injecting:     false,
+};
+
+// ═══════════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+function goTo(screen) {
+  document.querySelector('.screen.active')?.classList.remove('active');
+  document.getElementById('screen-' + screen).classList.add('active');
+  state.currentScreen = screen;
+
+  if (screen === 'characters') initCharactersScreen();
+  if (screen === 'inject')     initInjectScreen();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCREEN 1: HOME
+// ═══════════════════════════════════════════════════════════════
+function updateCharCount() {
+  const txt = document.getElementById('report-input').value;
+  document.getElementById('char-count').textContent = txt.length + ' caratteri';
+  document.getElementById('analyze-btn').disabled = txt.trim().length === 0;
+}
+
+function pickFile() {
+  document.getElementById('file-input').click();
+}
+
+async function handleFileInput(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  document.getElementById('report-input').value = text;
+  updateCharCount();
+  showToast('File caricato: ' + file.name);
+}
+
+async function pasteClipboard() {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) { showToast('Clipboard vuota', 'error'); return; }
+    document.getElementById('report-input').value = text;
+    updateCharCount();
+    showToast('Incollato ✓', 'success');
+  } catch(e) {
+    // Fallback: focus sul textarea e lascia incollare manualmente
+    document.getElementById('report-input').focus();
+    showToast('Premi e tieni → Incolla', 'error');
+  }
+}
+
+function analyzeReport() {
+  const text = document.getElementById('report-input').value;
+  if (!text.trim()) return;
+  state.parsedReport = parseReport(text);
+  state.editFields   = getEditableFields(state.parsedReport);
+  renderReviewScreen();
+  goTo('review');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PARSER
+// ═══════════════════════════════════════════════════════════════
+function parseReport(text) {
+  const result = {
+    characterName: null,
+    hairStyle: null, bodyType: null, ethnicity: null,
+    breastSize: null, buttSize: null, eyeColor: null,
+    hairColor: null, skinTone: null,
+    personality: null, occupation: null, relationship: null,
+    hobby: null, fetish: null,
+    customPhysicalDetails: null, customFaceDetails: null,
+    publicDescription: null, greeting: null,
+    firstReplySuggestion: null, scenario: null,
+    additionalPersonalityDetails: null, extraDetails: null,
+    tags: [],
+  };
+
+  // Nome personaggio: prima riga non vuota non speciale
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const t = line.trim();
+    if (t && !t.startsWith('[') && !t.startsWith('*') && !t.startsWith('#')) {
+      result.characterName = t;
+      break;
+    }
+  }
+
+  function extractSection(tag) {
+    const re = new RegExp(`\\[${tag}\\][\\s\\S]*?(?=\\n\\[|\\n##\\s*\\[|$)`, 'i');
+    const m = text.match(re);
+    if (!m) return null;
+    return m[0].replace(/^\[.*?\]\s*/i, '').trim() || null;
+  }
+
+  function extractSectionHash(tag) {
+    const re = new RegExp(`##\\s*\\[${tag}\\][\\s\\S]*?(?=\\n\\[|\\n##\\s*\\[|$)`, 'i');
+    const m = text.match(re);
+    if (!m) return null;
+    return m[0].replace(/^##\s*\[.*?\]\s*/i, '').trim() || null;
+  }
+
+  // Appearance
+  const app = extractSection('Appearance');
+  if (app) {
+    const pf = f => { const m = app.match(new RegExp(`\\*\\s*${f}:\\s*(.+)`, 'i')); return m ? m[1].trim() : null; };
+    result.hairStyle   = pf('Hair Style');
+    result.bodyType    = pf('Body Type');
+    result.ethnicity   = pf('Ethnicity');
+    result.breastSize  = pf('Breast Size');
+    result.buttSize    = pf('Butt Size');
+    result.eyeColor    = pf('Eye Color');
+    result.hairColor   = pf('Hair Color');
+    result.skinTone    = pf('Skin Tone');
+  }
+
+  // Personality
+  const pers = extractSection('Personality');
+  if (pers) {
+    const pf = f => { const m = pers.match(new RegExp(`\\*\\s*${f}:\\s*(.+)`, 'i')); return m ? m[1].trim() : null; };
+    result.personality  = pf('Personality');
+    result.occupation   = pf('Occupation');
+    result.relationship = pf('Relationship');
+    result.hobby        = pf('Hobby');
+    result.fetish       = pf('Fetish');
+  }
+
+  // Text fields
+  result.customPhysicalDetails       = extractSection('Custom Physical Details');
+  result.customFaceDetails           = extractSection('Custom Face Details');
+  result.greeting                    = extractSection('Greeting');
+  result.firstReplySuggestion        = extractSection('First Reply Suggestion');
+  result.scenario                    = extractSection('Scenario');
+  result.additionalPersonalityDetails= extractSection('Additional Personality Details');
+  result.extraDetails                = extractSection('Extra Details');
+  result.publicDescription           = extractSectionHash('Public Description') || extractSection('Public Description');
+
+  // Tags
+  const tagsSection = extractSection('Tags');
+  if (tagsSection) {
+    result.tags = tagsSection.split('\n')
+      .map(l => l.replace(/^\*\s*/, '').trim())
+      .filter(l => l && !l.startsWith('['));
+  }
+
+  return result;
+}
+
+function getEditableFields(p) {
+  return {
+    personality:                  p.personality,
+    occupation:                   p.occupation,
+    relationship:                 p.relationship,
+    hobby:                        p.hobby,
+    fetish:                       p.fetish,
+    customPhysicalDetails:        p.customPhysicalDetails,
+    customFaceDetails:            p.customFaceDetails,
+    publicDescription:            p.publicDescription,
+    greeting:                     p.greeting,
+    firstReplySuggestion:         p.firstReplySuggestion,
+    scenario:                     p.scenario,
+    additionalPersonalityDetails: p.additionalPersonalityDetails,
+    extraDetails:                 p.extraDetails,
+  };
+}
+
+const FIELD_LABELS = {
+  personality:                  'Personality',
+  occupation:                   'Occupation',
+  relationship:                 'Relationship',
+  hobby:                        'Hobby',
+  fetish:                       'Fetish',
+  customPhysicalDetails:        'Custom Physical Details',
+  customFaceDetails:            'Custom Face Details',
+  publicDescription:            'Public Description',
+  greeting:                     'Greeting',
+  firstReplySuggestion:         'First Reply Suggestion',
+  scenario:                     'Scenario',
+  additionalPersonalityDetails: 'Additional Personality Details',
+  extraDetails:                 'Extra Details',
+};
+const CARD_FIELDS = new Set(['personality','occupation','relationship','hobby','fetish']);
+
+// ═══════════════════════════════════════════════════════════════
+// SCREEN 2: REVIEW
+// ═══════════════════════════════════════════════════════════════
+function renderReviewScreen() {
+  const p = state.parsedReport;
+  const f = state.editFields;
+  const filled = Object.values(f).filter(v => v && v.trim()).length;
+  const total  = Object.keys(f).length;
+
+  document.getElementById('review-char-name').textContent  = p.characterName || 'Personaggio';
+  document.getElementById('review-field-count').textContent = `${filled}/${total} campi estratti`;
+
+  const body = document.getElementById('review-body');
+  body.innerHTML = `
+    <div class="stats-bar">
+      <div class="stats-name">${escHtml(p.characterName || '—')}</div>
+      <div class="stats-badge">${filled}/${total} campi</div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="field-dot card-type"></div>card + modale</div>
+      <div class="legend-item"><div class="field-dot"></div>textarea diretta</div>
+    </div>
+    ${Object.entries(FIELD_LABELS).map(([key, label]) => renderFieldCard(key, label, f[key])).join('')}
+    <div style="height:20px"></div>
+    <button class="btn btn-primary" onclick="goTo('characters')" ${filled===0?'disabled':''}>
+      Scegli personaggio →
+    </button>
+    <div style="height:40px"></div>
+  `;
+}
+
+function renderFieldCard(key, label, value) {
+  const isCard = CARD_FIELDS.has(key);
+  const hasVal = value && value.trim();
+  return `
+    <div class="field-card ${hasVal ? 'has-value' : ''}" id="fc-${key}">
+      <div class="field-card-header" onclick="toggleField('${key}')">
+        <div class="field-label-row">
+          <div class="field-dot ${isCard ? 'card-type' : ''}"></div>
+          <div class="field-label">${label}</div>
+        </div>
+        <div class="field-chevron">▼</div>
+      </div>
+      <div class="field-preview ${hasVal ? '' : 'empty'}">${hasVal ? escHtml(value.substring(0,100)) + (value.length > 100 ? '…' : '') : '— vuoto —'}</div>
+      <div class="field-body">
+        <textarea rows="5" oninput="updateField('${key}', this.value)">${escHtml(value || '')}</textarea>
+      </div>
+    </div>
+  `;
+}
+
+function toggleField(key) {
+  const card = document.getElementById('fc-' + key);
+  card.classList.toggle('expanded');
+}
+
+function updateField(key, value) {
+  state.editFields[key] = value;
+  // Aggiorna preview
+  const card = document.getElementById('fc-' + key);
+  const preview = card.querySelector('.field-preview');
+  if (value.trim()) {
+    preview.textContent = value.substring(0, 100) + (value.length > 100 ? '…' : '');
+    preview.classList.remove('empty');
+    card.classList.add('has-value');
+  } else {
+    preview.textContent = '— vuoto —';
+    preview.classList.add('empty');
+    card.classList.remove('has-value');
+  }
+  // Aggiorna counter
+  const filled = Object.values(state.editFields).filter(v => v && v.trim()).length;
+  document.getElementById('review-field-count').textContent = `${filled}/${Object.keys(state.editFields).length} campi`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCREEN 3: CHARACTERS
+// ═══════════════════════════════════════════════════════════════
+function initCharactersScreen() {
+  // Carica la pagina My AI in un iframe nascosto per estrarre i personaggi
+  // NOTA: a causa delle restrizioni CORS/iframe di OurDream, questo potrebbe
+  // non funzionare. In quel caso l'utente usa l'URL manuale.
+  renderCharLoading();
+
+  // Prova a caricare la pagina custom di OurDream
+  const frame = document.getElementById('od-hidden-frame');
+  frame.onload = () => {
+    try {
+      // Tenta l'estrazione (funzionerà solo se same-origin, altrimenti CORS error)
+      const links = frame.contentDocument.querySelectorAll('a[href*="/edit/"]');
+      const chars = [];
+      links.forEach(a => {
+        const m = a.getAttribute('href').match(/\/edit\/([^/?]+)/);
+        if (!m) return;
+        const nameEl = a.querySelector('[class*="font"],[class*="text-lg"],[class*="text-xl"]') || a;
+        chars.push({
+          id: m[1],
+          name: nameEl.textContent.trim().split('\n')[0].trim() || m[1],
+          editUrl: 'https://ourdream.ai/edit/' + m[1],
+        });
+      });
+      if (chars.length > 0) renderCharList(chars);
+      else renderCharEmpty();
+    } catch(e) {
+      // CORS - normale per siti esterni
+      renderCharEmpty();
+    }
+  };
+  frame.onerror = () => renderCharEmpty();
+  frame.src = 'https://ourdream.ai/custom';
+
+  // Timeout di sicurezza
+  setTimeout(() => {
+    if (document.getElementById('char-list-body').querySelector('.loading-box')) {
+      renderCharEmpty();
+    }
+  }, 5000);
+}
+
+function renderCharLoading() {
+  document.getElementById('char-list-body').innerHTML = `
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div class="loading-title">Connessione a OurDream...</div>
+      <div class="loading-sub">Sto cercando i tuoi personaggi</div>
+    </div>`;
+}
+
+function renderCharEmpty() {
+  document.getElementById('char-list-body').innerHTML = `
+    <div class="empty-box">
+      <div class="empty-icon">🔒</div>
+      <div class="empty-title">Lista non disponibile</div>
+      <div class="empty-sub">OurDream non permette l'accesso<br>diretto dall'app. Usa l'URL manuale qui sotto.</div>
+      <button class="btn btn-outline" style="width:auto;padding:10px 20px" onclick="initCharactersScreen()">
+        Riprova
+      </button>
+    </div>`;
+}
+
+function renderCharList(chars) {
+  document.getElementById('char-list-body').innerHTML = chars.map(c => `
+    <div class="char-card" onclick='selectChar(${JSON.stringify(c)})'>
+      <div class="char-avatar">${c.name.charAt(0).toUpperCase()}</div>
+      <div class="char-info">
+        <div class="char-name">${escHtml(c.name)}</div>
+        <div class="char-id">ID: ${escHtml(c.id)}</div>
+      </div>
+      <div class="char-arrow">→</div>
+    </div>
+  `).join('');
+}
+
+function selectChar(char) {
+  state.selectedChar = char;
+  goTo('inject');
+}
+
+function useManualUrl() {
+  const url = document.getElementById('manual-url').value.trim();
+  if (!url) { showToast('Inserisci un URL', 'error'); return; }
+  const m = url.match(/\/edit\/([^/?]+)/);
+  if (!m) { showToast('URL non valido — deve contenere /edit/ID', 'error'); return; }
+  state.selectedChar = {
+    id: m[1],
+    name: state.parsedReport?.characterName || 'Personaggio',
+    editUrl: url.startsWith('http') ? url : 'https://ourdream.ai/edit/' + m[1],
+  };
+  goTo('inject');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCREEN 4: INJECT
+// ═══════════════════════════════════════════════════════════════
+function initInjectScreen() {
+  const char = state.selectedChar;
+  if (!char) return;
+  document.getElementById('inject-char-name').textContent = char.name;
+  document.getElementById('inject-btn').disabled = true;
+  document.getElementById('inject-btn-text').textContent = '⏳ Caricamento pagina...';
+  document.getElementById('inject-spinner').style.display = 'none';
+  document.getElementById('inject-status').style.display = 'none';
+  state.frameLoaded = false;
+  state.injecting   = false;
+
+  const frame = document.getElementById('od-frame');
+  frame.src = char.editUrl;
+}
+
+function onFrameLoad() {
+  if (state.currentScreen !== 'inject') return;
+  state.frameLoaded = true;
+  document.getElementById('inject-btn').disabled = false;
+  document.getElementById('inject-btn-text').textContent = '⚡ Compila campi automaticamente';
+  showToast('Pagina caricata ✓', 'success');
+}
+
+function startInjection() {
+  if (state.injecting || !state.frameLoaded) return;
+  state.injecting = true;
+
+  const btn = document.getElementById('inject-btn');
+  btn.disabled = true;
+  document.getElementById('inject-spinner').style.display = 'block';
+  document.getElementById('inject-btn-text').textContent = 'Compilazione in corso...';
+  document.getElementById('inject-status').style.display = 'flex';
+  document.getElementById('inject-status').innerHTML = '<div class="spinner" style="width:14px;height:14px"></div> Sto compilando i campi...';
+
+  const frame = document.getElementById('od-frame');
+
+  // Genera e inietta lo script
+  try {
+    const script = generateInjectionScript(state.editFields);
+    // Inietta tramite eval nel contesto dell'iframe
+    // NOTA: funziona solo se same-origin. Se OurDream blocca, mostra istruzioni bookmarklet.
+    frame.contentWindow.eval(script);
+  } catch(e) {
+    // CORS block - fallback: copia script in clipboard e mostra istruzioni
+    handleCORSFallback();
+  }
+
+  // Timeout di sicurezza
+  setTimeout(() => {
+    if (state.injecting) {
+      state.injecting = false;
+      btn.disabled = false;
+      document.getElementById('inject-spinner').style.display = 'none';
+      document.getElementById('inject-btn-text').textContent = '⚡ Compila campi automaticamente';
+      handleCORSFallback();
+    }
+  }, 3000);
+}
+
+function handleCORSFallback() {
+  // Se l'iframe è bloccato da CORS, genera il bookmarklet/script
+  // e mostra le istruzioni per usarlo manualmente
+  state.injecting = false;
+  document.getElementById('inject-btn').disabled = false;
+  document.getElementById('inject-spinner').style.display = 'none';
+
+  const script = generateInjectionScript(state.editFields);
+  const bookmarklet = 'javascript:' + encodeURIComponent(`(function(){${script}})();`);
+
+  // Copia bookmarklet in clipboard
+  navigator.clipboard.writeText(bookmarklet).then(() => {
+    document.getElementById('inject-status').innerHTML = `
+      <div style="color:var(--pink);font-family:var(--mono);font-size:12px;text-align:center;padding:8px 0">
+        ⚠️ OurDream blocca l'accesso diretto.<br><br>
+        <strong>Script copiato negli appunti!</strong><br><br>
+        1. Apri OurDream in Chrome<br>
+        2. Vai alla pagina edit del personaggio<br>
+        3. Incolla nella barra dell'indirizzo<br>
+        4. Premi Invio
+      </div>`;
+    document.getElementById('inject-btn-text').textContent = '📋 Script copiato — segui le istruzioni';
+    showToast('Script copiato negli appunti', 'success');
+  }).catch(() => {
+    document.getElementById('inject-btn-text').textContent = '⚡ Compila campi automaticamente';
+    showToast('Impossibile copiare. Riprova.', 'error');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// JS INJECTION SCRIPT GENERATOR
+// ═══════════════════════════════════════════════════════════════
+function generateInjectionScript(fields) {
+  const fieldsJson = JSON.stringify(fields);
+  return `
+(function() {
+  const fields = ${fieldsJson};
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function findLabelElement(labelText) {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node;
+    while (node = walker.nextNode()) {
+      if (node.textContent.trim() === labelText) return node.parentElement;
+    }
+    return null;
+  }
+
+  function findCardContainer(el) {
+    let node = el;
+    for (let i = 0; i < 8; i++) {
+      if (!node) break;
+      const cls = node.className || '';
+      if (typeof cls === 'string' && (cls.includes('border') || cls.includes('rounded')) && node !== document.body) return node;
+      node = node.parentElement;
+    }
+    return el.parentElement;
+  }
+
+  function setReactValue(el, value) {
+    const proto = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')
+      || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+    if (proto && proto.set) proto.set.call(el, value);
+    else el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function findOpenTextarea() {
+    return document.querySelector('textarea:focus')
+      || document.querySelector('[role="dialog"] textarea')
+      || document.querySelector('.fixed textarea')
+      || document.querySelector('textarea');
+  }
+
+  function findSaveBtn() {
+    const btns = [...document.querySelectorAll('button')];
+    return btns.find(b => {
+      const t = b.textContent.trim().toLowerCase();
+      const r = b.getBoundingClientRect();
+      return (t === 'save' || t === 'salva') && r.width > 0;
+    });
+  }
+
+  function safeClick(el) {
+    if (!el) return;
+    try { el.click(); } catch(e) {
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    }
+  }
+
+  async function closeOpenModal() {
+    // Chiudi modale aperto: cerca X button o premi Escape
+    const closeBtn = Array.from(document.querySelectorAll('button'))
+      .find(b => {
+        const t = b.textContent.trim();
+        const r = b.getBoundingClientRect();
+        return (t === '×' || t === '✕' || t === 'x' || t === 'X' || t.length === 1) && r.width > 0 && r.width < 50;
+      });
+    if (closeBtn) { safeClick(closeBtn); await sleep(400); }
+    else {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, keyCode: 27 }));
+      await sleep(400);
+    }
+  }
+
+  async function processTextField(labelText, value) {
+    if (!value) return 'skipped';
+
+    // Assicurati che non ci siano modali aperti
+    const existingModal = document.querySelector('[class*="fixed"][class*="z"]');
+    if (existingModal && existingModal.querySelector('textarea,input')) {
+      await closeOpenModal();
+    }
+
+    const labelEl = findLabelElement(labelText);
+    if (!labelEl) return 'label_not_found';
+    const card = findCardContainer(labelEl);
+
+    // Clicca la card intera
+    safeClick(card);
+    await sleep(800);
+
+    let ta = findOpenTextarea();
+
+    // Se si è aperto un modale "Select X" con opzioni (card fields come Fetish),
+    // cerca il bottone "Custom" e cliccalo
+    if (!ta) {
+      const customBtn = Array.from(document.querySelectorAll('button,[class*="cursor"]'))
+        .find(b => b.textContent.trim().toLowerCase() === 'custom' && b.getBoundingClientRect().width > 0);
+      if (customBtn) {
+        safeClick(customBtn);
+        await sleep(600);
+        ta = findOpenTextarea();
+      }
+    }
+
+    // Secondo tentativo: click sul label
+    if (!ta) {
+      safeClick(labelEl);
+      await sleep(700);
+      ta = findOpenTextarea();
+    }
+
+    if (!ta) return 'input_not_found';
+
+    // Pulisci il campo e inserisci il valore
+    ta.focus();
+    await sleep(100);
+    // Seleziona tutto e cancella prima
+    ta.select();
+    document.execCommand('selectAll');
+    setReactValue(ta, value);
+    await sleep(300);
+
+    // Cerca Save button
+    const saveBtn = findSaveBtn();
+    if (saveBtn) {
+      safeClick(saveBtn);
+      await sleep(600);
+    } else {
+      // Premi Enter o blur per confermare
+      ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await sleep(200);
+      ta.blur();
+      await sleep(300);
+    }
+    return 'ok';
+  }
+
+  const labelMap = {
+    'Personality':                    'personality',
+    'Occupation':                     'occupation',
+    'Relationship':                   'relationship',
+    'Hobby':                          'hobby',
+    'Fetish':                         'fetish',
+    'Custom Physical Details':        'customPhysicalDetails',
+    'Custom Face Details':            'customFaceDetails',
+    'Public Description':             'publicDescription',
+    'Greeting':                       'greeting',
+    'First Reply Suggestion':         'firstReplySuggestion',
+    'Scenario':                       'scenario',
+    'Additional Personality Details': 'additionalPersonalityDetails',
+    'Extra Details':                  'extraDetails',
+  };
+
+  async function run() {
+    const results = [];
+    // Switcha su tab Personality
+    const tabs = [...document.querySelectorAll('button,div[role=tab]')];
+    const persTab = tabs.find(el => el.textContent.trim() === 'Personality');
+    if (persTab) { persTab.click(); await sleep(400); }
+
+    for (const [label, key] of Object.entries(labelMap)) {
+      if (!fields[key]) continue;
+      const status = await processTextField(label, fields[key]);
+      results.push({ label, status });
+    }
+
+    const ok   = results.filter(r => r.status === 'ok').length;
+    const tot  = results.filter(r => r.status !== 'skipped').length;
+    alert('✅ Completato: ' + ok + '/' + tot + ' campi compilati.\\n\\nRicorda di premere "Update" su OurDream per salvare!');
+  }
+
+  run().catch(e => alert('Errore: ' + e.message));
+})();
+`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════
+function escHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = '', 2500);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SERVICE WORKER (PWA offline)
+// ═══════════════════════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  // Inline service worker tramite blob
+  const swCode = `
+    const CACHE = 'odf-v1';
+    self.addEventListener('install', e => {
+      e.waitUntil(caches.open(CACHE).then(c => c.addAll(['/'])));
+      self.skipWaiting();
+    });
+    self.addEventListener('fetch', e => {
+      if (!e.request.url.includes('ourdream.ai')) {
+        e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+      }
+    });
+  `;
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(() => {});
+}
+</script>
+</body>
+</html>
