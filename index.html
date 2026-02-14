@@ -1137,175 +1137,253 @@ function generateInjectionScript(fields) {
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  function findLabelElement(labelText) {
+  // Click sicuro su qualsiasi elemento
+  function safeClick(el) {
+    if (!el) return;
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+  }
+
+  // Trova un elemento per testo esatto
+  function findByText(text) {
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let node;
     while (node = walker.nextNode()) {
-      if (node.textContent.trim() === labelText) return node.parentElement;
+      if (node.textContent.trim() === text) return node.parentElement;
     }
     return null;
   }
 
-  function findCardContainer(el) {
-    let node = el;
-    for (let i = 0; i < 8; i++) {
-      if (!node) break;
-      const cls = node.className || '';
-      if (typeof cls === 'string' && (cls.includes('border') || cls.includes('rounded')) && node !== document.body) return node;
-      node = node.parentElement;
-    }
-    return el.parentElement;
+  // Trova textarea aperto nel DOM
+  function findTextarea() {
+    // Priorità: textarea con focus, poi in overlay/fixed, poi qualsiasi
+    return document.querySelector('textarea:focus')
+      || document.querySelector('[style*="position: fixed"] textarea')
+      || document.querySelector('[class*="fixed"] textarea')
+      || document.querySelector('[class*="overlay"] textarea')
+      || document.querySelector('textarea');
   }
 
-  function setReactValue(el, value) {
-    const proto = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')
+  // Chiudi modale cercando il bottone X visibile più in alto a destra
+  async function closeModal() {
+    // Cerca tutti i bottoni visibili senza testo o con X
+    const btns = Array.from(document.querySelectorAll('button'));
+    let closeBtn = null;
+    let bestScore = -1;
+    for (const btn of btns) {
+      const r = btn.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      const txt = btn.textContent.trim();
+      // Bottone piccolo (< 50px) con testo vuoto o X — tipico bottone chiudi
+      if (r.width < 60 && r.height < 60 && (txt === '' || txt === '×' || txt === '✕' || txt === 'X' || txt.length <= 1)) {
+        // Preferisci quello più in alto a destra
+        const score = r.x - r.y;
+        if (score > bestScore) { bestScore = score; closeBtn = btn; }
+      }
+    }
+    if (closeBtn) {
+      safeClick(closeBtn);
+      await sleep(500);
+      return true;
+    }
+    // Fallback: Escape
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+    await sleep(500);
+    return false;
+  }
+
+  // Imposta valore in modo React-friendly
+  function setVal(el, value) {
+    const desc = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')
       || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-    if (proto && proto.set) proto.set.call(el, value);
+    if (desc && desc.set) desc.set.call(el, value);
     else el.value = value;
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  function findOpenTextarea() {
-    return document.querySelector('textarea:focus')
-      || document.querySelector('[role="dialog"] textarea')
-      || document.querySelector('.fixed textarea')
-      || document.querySelector('textarea');
-  }
-
-  function findSaveBtn() {
-    const btns = [...document.querySelectorAll('button')];
-    return btns.find(b => {
+  // Trova Save button visibile nel modale
+  function findSave() {
+    return Array.from(document.querySelectorAll('button')).find(b => {
       const t = b.textContent.trim().toLowerCase();
       const r = b.getBoundingClientRect();
       return (t === 'save' || t === 'salva') && r.width > 0;
     });
   }
 
-  function safeClick(el) {
-    if (!el) return;
-    try { el.click(); } catch(e) {
-      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-    }
-  }
-
-  async function closeOpenModal() {
-    // Chiudi modale aperto: cerca X button o premi Escape
-    const closeBtn = Array.from(document.querySelectorAll('button'))
-      .find(b => {
-        const t = b.textContent.trim();
-        const r = b.getBoundingClientRect();
-        return (t === '×' || t === '✕' || t === 'x' || t === 'X' || t.length === 1) && r.width > 0 && r.width < 50;
-      });
-    if (closeBtn) { safeClick(closeBtn); await sleep(400); }
-    else {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, keyCode: 27 }));
-      await sleep(400);
-    }
-  }
-
-  async function processTextField(labelText, value) {
+  // Elabora UN campo testuale (textarea dopo click matita)
+  async function doTextField(labelText, value) {
     if (!value) return 'skipped';
 
-    // Assicurati che non ci siano modali aperti
-    const existingModal = document.querySelector('[class*="fixed"][class*="z"]');
-    if (existingModal && existingModal.querySelector('textarea,input')) {
-      await closeOpenModal();
+    // Assicurati che il DOM sia pulito (nessun modale aperto)
+    if (findTextarea()) { await closeModal(); await sleep(300); }
+
+    // Trova il label e la card
+    const labelEl = findByText(labelText);
+    if (!labelEl) return 'not_found:' + labelText;
+
+    // Risali al container card (border+rounded)
+    let card = labelEl;
+    for (let i = 0; i < 8; i++) {
+      if (!card.parentElement || card.parentElement === document.body) break;
+      card = card.parentElement;
+      const cls = card.className || '';
+      if (typeof cls === 'string' && cls.includes('border') && cls.includes('rounded')) break;
     }
 
-    const labelEl = findLabelElement(labelText);
-    if (!labelEl) return 'label_not_found';
-    const card = findCardContainer(labelEl);
-
-    // Clicca la card intera
+    // Click sulla card per aprire il textarea inline
     safeClick(card);
     await sleep(800);
 
-    let ta = findOpenTextarea();
-
-    // Se si è aperto un modale "Select X" con opzioni (card fields come Fetish),
-    // cerca il bottone "Custom" e cliccalo
+    let ta = findTextarea();
     if (!ta) {
-      const customBtn = Array.from(document.querySelectorAll('button,[class*="cursor"]'))
-        .find(b => b.textContent.trim().toLowerCase() === 'custom' && b.getBoundingClientRect().width > 0);
-      if (customBtn) {
-        safeClick(customBtn);
-        await sleep(600);
-        ta = findOpenTextarea();
-      }
-    }
-
-    // Secondo tentativo: click sul label
-    if (!ta) {
+      // Secondo tentativo: click diretto sul label
       safeClick(labelEl);
-      await sleep(700);
-      ta = findOpenTextarea();
+      await sleep(800);
+      ta = findTextarea();
     }
+    if (!ta) return 'no_textarea:' + labelText;
 
-    if (!ta) return 'input_not_found';
-
-    // Pulisci il campo e inserisci il valore
     ta.focus();
-    await sleep(100);
-    // Seleziona tutto e cancella prima
-    ta.select();
-    document.execCommand('selectAll');
-    setReactValue(ta, value);
-    await sleep(300);
+    setVal(ta, value);
+    await sleep(200);
 
-    // Cerca Save button
-    const saveBtn = findSaveBtn();
-    if (saveBtn) {
-      safeClick(saveBtn);
-      await sleep(600);
-    } else {
-      // Premi Enter o blur per confermare
-      ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      await sleep(200);
-      ta.blur();
-      await sleep(300);
-    }
+    const saveBtn = findSave();
+    if (saveBtn) { safeClick(saveBtn); await sleep(600); }
+    else { ta.blur(); await sleep(400); }
+
     return 'ok';
   }
 
-  const labelMap = {
-    'Personality':                    'personality',
-    'Occupation':                     'occupation',
-    'Relationship':                   'relationship',
-    'Hobby':                          'hobby',
-    'Fetish':                         'fetish',
-    'Custom Physical Details':        'customPhysicalDetails',
-    'Custom Face Details':            'customFaceDetails',
-    'Public Description':             'publicDescription',
-    'Greeting':                       'greeting',
-    'First Reply Suggestion':         'firstReplySuggestion',
-    'Scenario':                       'scenario',
-    'Additional Personality Details': 'additionalPersonalityDetails',
-    'Extra Details':                  'extraDetails',
-  };
+  // Elabora un campo CARD (apre modale con opzioni → clicca Custom → textarea)
+  async function doCardField(labelText, value) {
+    if (!value) return 'skipped';
+
+    // Chiudi eventuale modale aperto
+    if (findTextarea() || document.querySelector('[class*="fixed"] button')) {
+      await closeModal();
+      await sleep(400);
+    }
+
+    const labelEl = findByText(labelText);
+    if (!labelEl) return 'not_found:' + labelText;
+
+    let card = labelEl;
+    for (let i = 0; i < 8; i++) {
+      if (!card.parentElement || card.parentElement === document.body) break;
+      card = card.parentElement;
+      const cls = card.className || '';
+      if (typeof cls === 'string' && cls.includes('border') && cls.includes('rounded')) break;
+    }
+
+    // Click sulla card → si apre modale con opzioni (Sweet, Flirty, Custom...)
+    safeClick(card);
+    await sleep(900);
+
+    // Cerca il bottone "Custom" nel modale
+    const customBtn = Array.from(document.querySelectorAll('button')).find(b => {
+      const t = b.textContent.replace(/[^a-zA-Z]/g, '').trim().toLowerCase();
+      const r = b.getBoundingClientRect();
+      return t === 'custom' && r.width > 0;
+    });
+
+    if (!customBtn) {
+      // Se non c'è Custom, il modale potrebbe già avere un textarea
+      const ta = findTextarea();
+      if (ta) {
+        ta.focus();
+        setVal(ta, value);
+        await sleep(200);
+        const saveBtn = findSave();
+        if (saveBtn) { safeClick(saveBtn); await sleep(600); }
+        else { await closeModal(); }
+        return 'ok_direct';
+      }
+      await closeModal();
+      return 'no_custom:' + labelText;
+    }
+
+    // Click su Custom → si apre un secondo modale con textarea
+    safeClick(customBtn);
+    await sleep(700);
+
+    const ta = findTextarea();
+    if (!ta) { await closeModal(); return 'no_textarea_after_custom:' + labelText; }
+
+    ta.focus();
+    setVal(ta, value);
+    await sleep(200);
+
+    const saveBtn = findSave();
+    if (saveBtn) { safeClick(saveBtn); await sleep(600); }
+    else { await closeModal(); }
+
+    return 'ok';
+  }
+
+  // Switcha su un tab (Appearance / Personality)
+  async function switchTab(tabName) {
+    const tab = Array.from(document.querySelectorAll('button')).find(b =>
+      b.textContent.trim() === tabName && b.getBoundingClientRect().width > 0
+    );
+    if (tab) { safeClick(tab); await sleep(500); }
+  }
 
   async function run() {
     const results = [];
-    // Switcha su tab Personality
-    const tabs = [...document.querySelectorAll('button,div[role=tab]')];
-    const persTab = tabs.find(el => el.textContent.trim() === 'Personality');
-    if (persTab) { persTab.click(); await sleep(400); }
 
-    for (const [label, key] of Object.entries(labelMap)) {
-      if (!fields[key]) continue;
-      const status = await processTextField(label, fields[key]);
-      results.push({ label, status });
+    // ── TAB APPEARANCE ────────────────────────────────────────
+    await switchTab('Appearance');
+
+    for (const [label, key] of [
+      ['Custom Physical Details', 'customPhysicalDetails'],
+      ['Custom Face Details',     'customFaceDetails'],
+    ]) {
+      const r = await doTextField(label, fields[key]);
+      results.push({ label, status: r });
     }
 
-    const ok   = results.filter(r => r.status === 'ok').length;
-    const tot  = results.filter(r => r.status !== 'skipped').length;
-    alert('✅ Completato: ' + ok + '/' + tot + ' campi compilati.\\n\\nRicorda di premere "Update" su OurDream per salvare!');
+    // ── TAB PERSONALITY ───────────────────────────────────────
+    await switchTab('Personality');
+
+    // Card fields (aprono modale con opzioni)
+    for (const [label, key] of [
+      ['Personality',  'personality'],
+      ['Occupation',   'occupation'],
+      ['Relationship', 'relationship'],
+      ['Hobby',        'hobby'],
+      ['Fetish',       'fetish'],
+    ]) {
+      const r = await doCardField(label, fields[key]);
+      results.push({ label, status: r });
+    }
+
+    // Text fields (textarea inline)
+    for (const [label, key] of [
+      ['Public Description',             'publicDescription'],
+      ['Greeting',                        'greeting'],
+      ['First Reply Suggestion',          'firstReplySuggestion'],
+      ['Scenario',                        'scenario'],
+      ['Additional Personality Details',  'additionalPersonalityDetails'],
+      ['Extra Details',                   'extraDetails'],
+    ]) {
+      const r = await doTextField(label, fields[key]);
+      results.push({ label, status: r });
+    }
+
+    const ok  = results.filter(r => r.status === 'ok' || r.status === 'ok_direct').length;
+    const tot = results.filter(r => r.status !== 'skipped').length;
+    const errors = results.filter(r => r.status !== 'ok' && r.status !== 'ok_direct' && r.status !== 'skipped');
+    
+    let msg = '✅ Completato: ' + ok + '/' + tot + ' campi compilati.\\n\\nRicorda di premere "Update" su OurDream per salvare!';
+    if (errors.length > 0) {
+      msg += '\\n\\nNon compilati:\\n' + errors.map(e => '• ' + e.label + ': ' + e.status).join('\\n');
+    }
+    alert(msg);
   }
 
-  run().catch(e => alert('Errore: ' + e.message));
+  run().catch(e => alert('Errore: ' + e.message + '\\n' + e.stack));
 })();
-`;
-}
+`;}
 
 // ═══════════════════════════════════════════════════════════════
 // UTILS
